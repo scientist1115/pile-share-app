@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PhoneDrop</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📲</text></svg>">
+<style>
+  :root {
+    --bg: #f4f4f1; --panel: #ffffff; --ink: #1b1d22; --sub: #6b7078; --line: #e3e3de;
+    --accent: #2563eb; --accent-soft: #e8eefc; --ok: #15803d; --warn: #b45309; --bad: #b91c1c;
+    --font: "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { font-family: var(--font); background: var(--bg); color: var(--ink); display: flex; flex-direction: column; }
+  button { font: inherit; cursor: pointer; }
+
+  header { display: flex; align-items: center; gap: 16px; padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .brand { font-weight: 800; font-size: 18px; margin-right: auto; }
+  .controls { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: 14px; color: var(--sub); }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button { border: 0; background: transparent; padding: 6px 12px; color: var(--sub); }
+  .seg button.on { background: var(--accent); color: #fff; }
+  .controls label { display: inline-flex; align-items: center; gap: 6px; }
+  #scale { width: 90px; }
+  .status { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 6px 12px; font-size: 13px; color: var(--sub); }
+  .status::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #bbb; margin-right: 6px; vertical-align: 1px; }
+  .status.connected { color: var(--ok); } .status.connected::before { background: var(--ok); }
+  .status.disconnected, .status.no-tool, .status.error { color: var(--warn); }
+  .status.disconnected::before, .status.no-tool::before, .status.error::before { background: var(--warn); }
+  .status.busy::before { background: var(--accent); }
+
+  main { flex: 1; overflow-y: auto; padding: 24px 20px 12px; }
+  .msg { max-width: 760px; margin: 0 auto 16px; display: flex; }
+  .msg.user { justify-content: flex-end; }
+  .bubble { padding: 12px 16px; border-radius: 14px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; max-width: 100%; }
+  .user .bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 4px; max-width: 80%; }
+  .bot .bubble { background: var(--panel); border: 1px solid var(--line); border-bottom-left-radius: 4px; width: 100%; }
+  .bubble .files { font-size: 13px; opacity: .85; margin-top: 6px; }
+  .bubble.thinking { color: var(--sub); }
+  .notes { font-size: 13px; color: var(--warn); margin-top: 8px; }
+  .thumbs { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+  .thumbs img { width: 108px; aspect-ratio: 9/16; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); cursor: zoom-in; background: #fff; }
+  .actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .actions button { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 6px 12px; font-size: 13px; }
+  .actions button:hover { border-color: var(--accent); color: var(--accent); }
+  .sendline { font-size: 13px; margin-top: 10px; }
+  .sendline.ok { color: var(--ok); } .sendline.bad { color: var(--bad); } .sendline.wait { color: var(--sub); }
+  .sendline small { display: block; color: var(--sub); margin-top: 4px; white-space: pre-wrap; }
+
+  .tool { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 6px 12px; font-size: 13px; color: var(--ink); }
+  .tool:hover { border-color: var(--accent); color: var(--accent); }
+  #chips { max-width: 760px; margin: 0 auto 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+  #chips button { border: 1px solid var(--line); background: var(--bg); border-radius: 999px; padding: 4px 11px; font-size: 13px; color: var(--sub); }
+  #chips button:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+  .thumbs a.video { width: 108px; aspect-ratio: 9/16; border-radius: 8px; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; text-align: center; font-size: 12px; color: var(--sub); text-decoration: none; padding: 6px; word-break: break-all; background: #fff; }
+  footer { background: var(--panel); border-top: 1px solid var(--line); padding: 10px 20px 16px; }
+  #attachments { max-width: 760px; margin: 0 auto; display: flex; gap: 8px; flex-wrap: wrap; }
+  #attachments:not(:empty) { margin-bottom: 8px; }
+  .chip { background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 4px 10px; font-size: 13px; display: inline-flex; gap: 6px; align-items: center; }
+  .chip button { border: 0; background: none; color: inherit; padding: 0; font-size: 14px; }
+  #composer { max-width: 760px; margin: 0 auto; display: flex; gap: 8px; align-items: flex-end; }
+  .attach { font-size: 22px; padding: 6px; cursor: pointer; user-select: none; }
+  #input { flex: 1; resize: none; border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; font: inherit; font-size: 15px; max-height: 200px; outline: none; }
+  #input:focus { border-color: var(--accent); }
+  #sendBtn { background: var(--accent); color: #fff; border: 0; border-radius: 12px; padding: 10px 18px; font-weight: 700; }
+  #sendBtn:disabled { opacity: .5; cursor: default; }
+
+  #drop { position: fixed; inset: 0; background: rgba(37, 99, 235, .12); border: 3px dashed var(--accent); display: none; align-items: center; justify-content: center; font-size: 22px; font-weight: 700; color: var(--accent); pointer-events: none; }
+  #drop.show { display: flex; }
+  #login { position: fixed; inset: 0; background: rgba(20,22,28,.55); display: none; align-items: center; justify-content: center; z-index: 10; }
+  #login.show { display: flex; }
+  #login form { background: var(--panel); border-radius: 16px; padding: 28px; width: min(360px, 90vw); display: flex; flex-direction: column; gap: 12px; }
+  #login h2 { margin: 0; font-size: 18px; }
+  #login p { margin: 0; color: var(--sub); font-size: 14px; }
+  #login input { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font: inherit; }
+  #login button { background: var(--accent); color: #fff; border: 0; border-radius: 10px; padding: 10px; font-weight: 700; }
+  #login .err { color: var(--bad); font-size: 13px; min-height: 1em; }
+  .status.cloud::before { background: var(--accent); }
+  #lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.75); display: none; align-items: center; justify-content: center; cursor: zoom-out; }
+  #lightbox.show { display: flex; }
+  #lightbox img { max-height: 92vh; max-width: 92vw; border-radius: 10px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">📲 PhoneDrop</div>
+  <div class="controls">
+    <div class="seg" id="mode" title="AI 정리: AI가 읽기 좋게 카드로 정리 / 그대로: 글은 그대로 카드로, 사진은 그대로 전송">
+      <button type="button" data-mode="ai" class="on">AI 정리</button>
+      <button type="button" data-mode="raw">그대로</button>
+    </div>
+    <label>글씨 <input type="range" id="scale" min="0.8" max="1.6" step="0.1" value="1"><span id="scaleVal">1.0</span></label>
+    <div class="seg" id="theme">
+      <button type="button" data-theme="light" class="on">밝게</button>
+      <button type="button" data-theme="dark">어둡게</button>
+    </div>
+    <label><input type="checkbox" id="autoSend" checked> 자동 전송</label>
+    <button type="button" id="importBtn" class="tool" title="폰의 최근 사진·스크린샷을 맥으로 가져와요">📥 폰 사진 가져오기</button>
+    <button type="button" id="status" class="status">폰 확인 중…</button>
+  </div>
+</header>
+
+<main id="chat"></main>
+
+<footer>
+  <div id="chips">
+    <button type="button" data-prompt="단어 퀴즈 카드로 만들어 줘. 한 장에 5개씩, 문제 카드엔 단어만, 바로 다음 정답 카드에 뜻.">📚 단어 퀴즈</button>
+    <button type="button" data-prompt="핵심만 요약해서 카드로 만들어 줘.">📝 요약</button>
+    <button type="button" data-prompt="체크리스트 카드로 만들어 줘.">✅ 할 일</button>
+    <button type="button" data-prompt="날짜·시간 순서대로 일정 카드로 정리해 줘.">📅 일정</button>
+    <button type="button" data-prompt="원문 그대로 카드로 나눠 줘.">📄 원문 그대로</button>
+  </div>
+  <div id="attachments"></div>
+  <form id="composer">
+    <label class="attach" title="파일 첨부 (텍스트·PDF·사진·영상)">📎<input type="file" id="fileInput" multiple hidden></label>
+    <textarea id="input" rows="1" placeholder="글을 쓰거나 파일을 끌어다 놓으세요 · Enter 보내기 · Shift+Enter 줄바꿈 · ⌘V로 스크린샷 붙여넣기"></textarea>
+    <button type="submit" id="sendBtn">보내기</button>
+  </form>
+</footer>
+
+<div id="drop">여기에 놓으면 첨부돼요</div>
+<div id="lightbox"><img alt=""></div>
+<div id="login">
+  <form id="loginForm">
+    <h2>🔒 PhoneDrop 비밀번호</h2>
+    <p>Railway에 설정한 APP_PASSWORD를 입력하세요. 이 브라우저에 기억해 둘게요.</p>
+    <input type="password" id="pwInput" autocomplete="current-password" placeholder="비밀번호">
+    <div class="err" id="pwErr"></div>
+    <button type="submit">들어가기</button>
+  </form>
+</div>
+
+<script>
+// ─────────────────────────── 비밀번호 (클라우드) ───────────────────────────
+const PW_KEY = 'phonedrop_pw';
+const getPw = () => { try { return localStorage.getItem(PW_KEY) || ''; } catch { return ''; } };
+const setPw = (v) => { try { v ? localStorage.setItem(PW_KEY, v) : localStorage.removeItem(PW_KEY); } catch { /* 저장 불가 */ } };
+const _fetch = window.fetch.bind(window);
+window.fetch = (url, opts = {}) => {
+  if (typeof url === 'string' && url.startsWith('/api/') && getPw()) {
+    opts = { ...opts, headers: { ...(opts.headers || {}), 'X-App-Password': getPw() } };
+  }
+  return _fetch(url, opts);
+};
+function showLogin(msg = '') {
+  document.getElementById('pwErr').textContent = msg;
+  document.getElementById('login').classList.add('show');
+  setTimeout(() => document.getElementById('pwInput').focus(), 50);
+}
+
+// ─────────────────────────── 상태 ───────────────────────────
+const $ = (s, el = document) => el.querySelector(s);
+const state = { mode: 'ai', theme: 'light', scale: 1, history: [], files: [], busy: false, sending: false, config: {} };
+
+const FF = '"Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif';
+const W = 1080, H = 1920, PAD = 96;   // 카드 크기 (세로 9:16, 갤럭시 화면에 꽉 차게)
+const THEMES = {
+  light: { bg: '#FAFAF7', text: '#16181D', sub: '#7A7F87', accent: '#2563EB', soft: '#DCE5FB' },
+  dark:  { bg: '#121418', text: '#F3F4F6', sub: '#9CA3AF', accent: '#7DB2FF', soft: '#26324A' },
+};
+const TEXT_EXT = new Set(['txt','md','markdown','csv','tsv','json','js','mjs','ts','tsx','jsx','py','html','htm','css','java','c','h','cpp','swift','kt','rs','go','rb','php','sh','yml','yaml','xml','srt','vtt','log','ini','toml']);
+const extOf = (n) => (n.split('.').pop() || '').toLowerCase();
+const isTextFile = (f) => (f.type || '').startsWith('text/') || /json|xml|javascript|yaml|csv/.test(f.type || '') || TEXT_EXT.has(extOf(f.name));
+const r = Math.round;
+const VIDEO_EXT = new Set(['mp4','mov','m4v','3gp','mkv','webm','avi']);
+const isVideo = (f) => (f.type || '').startsWith('video/') || VIDEO_EXT.has(extOf(f.name || ''));
+const mbOf = (files) => (files.reduce((a, f) => a + (f.size || 0), 0) / 1024 / 1024).toFixed(1);
+// 서버 응답을 안전하게 JSON으로 (HTML 오류 페이지가 와도 알아보기 쉬운 메시지로)
+async function fetchJson(url, opts) {
+  const res = await fetch(url, opts);
+  const text = await res.text();
+  let j;
+  try { j = JSON.parse(text); } catch { throw new Error(`서버 오류 (${res.status}). 터미널 화면을 확인해 주세요.`); }
+  if (res.status === 401) { showLogin(getPw() ? '비밀번호가 틀렸어요.' : ''); throw new Error('비밀번호를 입력해 주세요.'); }
+  if (!res.ok) throw new Error(j.error || `오류 ${res.status}`);
+  return j;
+}
+
+// ─────────────────────────── 설정 컨트롤 ───────────────────────────
+function setMode(m) {
+  state.mode = m;
+  document.querySelectorAll('#mode button').forEach((b) => b.classList.toggle('on', b.dataset.mode === m));
+}
+function setTheme(t) {
+  state.theme = t;
+  document.querySelectorAll('#theme button').forEach((b) => b.classList.toggle('on', b.dataset.theme === t));
+}
+function setScale(v) {
+  state.scale = Math.min(1.6, Math.max(0.8, Number(v) || 1));
+  $('#scale').value = state.scale;
+  $('#scaleVal').textContent = state.scale.toFixed(1);
+}
+$('#mode').addEventListener('click', (e) => e.target.dataset.mode && setMode(e.target.dataset.mode));
+$('#theme').addEventListener('click', (e) => e.target.dataset.theme && setTheme(e.target.dataset.theme));
+$('#scale').addEventListener('input', (e) => setScale(e.target.value));
+
+// ─────────────────────────── 폰 상태 ───────────────────────────
+const STATUS_TEXT = { connected: '📱 폰 연결됨', disconnected: '폰 연결 안 됨', 'no-tool': 'mtp-rs 없음', error: '폰 확인 오류', busy: '전송 중…', locked: '🔒 비밀번호 필요' };
+let lastStatus = {};
+async function checkStatus() {
+  if (state.sending) return;
+  try {
+    const res = await fetch('/api/status');
+    lastStatus = res.status === 401 ? { state: 'locked', hint: '비밀번호를 입력해 주세요.' } : await res.json();
+  } catch {
+    lastStatus = { state: 'error', hint: '서버에 연결할 수 없어요. 터미널에서 npm start가 켜져 있는지 확인하세요.' };
+  }
+  const el = $('#status');
+  if (lastStatus.state === 'cloud') {
+    // 클라우드: 맥 도우미와 폰 상태 + 대기 중인 개수
+    const q = lastStatus.queue ? ` · 대기 ${lastStatus.queue}개` : '';
+    if (lastStatus.bridgeOnline && lastStatus.phone === 'connected') {
+      el.className = 'status connected'; el.textContent = '📱 맥·폰 연결됨' + q;
+      lastStatus.hint = '보내면 바로 폰에 들어가요.';
+    } else if (lastStatus.bridgeOnline) {
+      el.className = 'status disconnected'; el.textContent = '💻 맥 연결 · 폰 없음' + q;
+      lastStatus.hint = '맥에 폰을 꽂으면(잠금 해제 + 파일 전송) 대기 중인 카드가 자동으로 들어가요.';
+    } else {
+      el.className = 'status cloud'; el.textContent = '☁️ 대기열' + (lastStatus.queue ? ` ${lastStatus.queue}개` : ' 비어 있음');
+      lastStatus.hint = '맥 도우미가 꺼져 있어요. 맥을 켜면 도우미가 대기열을 가져가 폰에 넣어요.';
+    }
+    el.title = lastStatus.hint;
+    return;
+  }
+  el.className = 'status ' + lastStatus.state;
+  el.textContent = STATUS_TEXT[lastStatus.state] || lastStatus.state;
+  el.title = lastStatus.hint || (lastStatus.names || []).join(', ');
+}
+$('#status').addEventListener('click', async () => {
+  await checkStatus();
+  if (lastStatus.state === 'locked') return showLogin();
+  if (lastStatus.state !== 'connected' && lastStatus.hint) addNote('📱 ' + lastStatus.hint + (lastStatus.detail ? '\n' + lastStatus.detail : ''));
+});
+setInterval(checkStatus, 8000);
+
+// ─────────────────────────── 첨부 ───────────────────────────
+function addFiles(list) {
+  for (const f of list) if (f && f.size) state.files.push(f);
+  renderAttachments();
+}
+function renderAttachments() {
+  const box = $('#attachments');
+  box.innerHTML = '';
+  state.files.forEach((f, i) => {
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.textContent = f.name || '붙여넣은 이미지';
+    const x = document.createElement('button');
+    x.type = 'button'; x.textContent = '✕';
+    x.onclick = () => { state.files.splice(i, 1); renderAttachments(); };
+    chip.appendChild(x);
+    box.appendChild(chip);
+  });
+}
+$('#fileInput').addEventListener('change', (e) => { addFiles(e.target.files); e.target.value = ''; });
+
+let dragDepth = 0;
+window.addEventListener('dragenter', (e) => { if (e.dataTransfer?.types?.includes('Files')) { dragDepth++; $('#drop').classList.add('show'); } });
+window.addEventListener('dragleave', () => { dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) $('#drop').classList.remove('show'); });
+window.addEventListener('dragover', (e) => e.preventDefault());
+window.addEventListener('drop', (e) => {
+  e.preventDefault(); dragDepth = 0; $('#drop').classList.remove('show');
+  if (e.dataTransfer?.files?.length) addFiles(e.dataTransfer.files);
+});
+window.addEventListener('paste', (e) => {
+  const files = [...(e.clipboardData?.items || [])].filter((it) => it.kind === 'file').map((it) => it.getAsFile());
+  if (files.length) { e.preventDefault(); addFiles(files.map((f, i) => f.name && f.name !== 'image.png' ? f : new File([f], `스크린샷${i + 1}.png`, { type: f.type }))); }
+});
+
+// ─────────────────────────── 채팅 말풍선 ───────────────────────────
+function scrollDown() { const m = $('#chat'); m.scrollTop = m.scrollHeight; }
+function addUserBubble(text, files) {
+  const wrap = document.createElement('div'); wrap.className = 'msg user';
+  const b = document.createElement('div'); b.className = 'bubble';
+  b.textContent = text || '(파일만 보냄)';
+  if (files.length) { const f = document.createElement('div'); f.className = 'files'; f.textContent = '📎 ' + files.map((x) => x.name).join(', '); b.appendChild(f); }
+  wrap.appendChild(b); $('#chat').appendChild(wrap); scrollDown();
+}
+function addBotBubble(text, thinking = false) {
+  const wrap = document.createElement('div'); wrap.className = 'msg bot';
+  const b = document.createElement('div'); b.className = 'bubble' + (thinking ? ' thinking' : '');
+  b.textContent = text;
+  wrap.appendChild(b); $('#chat').appendChild(wrap); scrollDown();
+  return b;
+}
+function addNote(text) { addBotBubble(text); }
+
+function fillBotBubble(b, reply, images, notes) {
+  b.classList.remove('thinking');
+  b.textContent = reply || (images.length ? `카드 ${images.length}장을 만들었어요.` : '');
+  if (notes?.length) { const n = document.createElement('div'); n.className = 'notes'; n.textContent = notes.join('\n'); b.appendChild(n); }
+  if (!images.length) return;
+  const thumbs = document.createElement('div'); thumbs.className = 'thumbs';
+  for (const img of images) {
+    const el = document.createElement('img'); el.src = img.dataUrl; el.alt = img.name;
+    el.onclick = () => { $('#lightbox img').src = img.dataUrl; $('#lightbox').classList.add('show'); };
+    thumbs.appendChild(el);
+  }
+  b.appendChild(thumbs);
+  const actions = document.createElement('div'); actions.className = 'actions';
+  const send = document.createElement('button'); send.type = 'button'; send.textContent = '📱 폰으로 보내기';
+  send.onclick = () => sendToPhone(images, b);
+  const save = document.createElement('button'); save.type = 'button'; save.textContent = '💾 맥에 저장';
+  save.onclick = () => images.forEach((img, i) => { const a = document.createElement('a'); a.href = img.dataUrl; a.download = `${img.name}_${i + 1}.png`; a.click(); });
+  actions.append(send, save);
+  b.appendChild(actions);
+  scrollDown();
+}
+$('#lightbox').addEventListener('click', () => $('#lightbox').classList.remove('show'));
+
+// ─────────────────────────── 빠른 버튼 ───────────────────────────
+$('#chips').addEventListener('click', (e) => {
+  const p = e.target.closest('button')?.dataset.prompt;
+  if (!p) return;
+  if (state.config.hasKey !== false) setMode('ai');
+  const t = $('#input');
+  t.value = p + (t.value.trim() ? '\n' + t.value : '\n');
+  autoGrow(); t.focus(); t.setSelectionRange(t.value.length, t.value.length);
+});
+
+// ─────────────────────────── 완료 알림 (다른 창을 보고 있을 때) ───────────────────────────
+function notify(text) {
+  try {
+    if (document.hidden && 'Notification' in window && Notification.permission === 'granted') new Notification('PhoneDrop', { body: text });
+  } catch { /* 알림 불가 */ }
+}
+function askNotifyPermission() {
+  try { if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission(); } catch { /* 무시 */ }
+}
+
+// ─────────────────────────── 폰 → 맥 사진 가져오기 ───────────────────────────
+async function importFromPhone(offset = 0) {
+  if (state.sending) return;
+  const b = addBotBubble('📥 폰에서 최근 사진을 찾는 중… (사진이 많으면 조금 걸려요)', true);
+  state.sending = true;
+  $('#status').className = 'status busy'; $('#status').textContent = '가져오는 중…';
+  try {
+    const j = await fetchJson(`/api/phone/recent?offset=${offset}&limit=6`);
+    b.classList.remove('thinking');
+    if (!j.ok) { b.textContent = '⚠️ ' + j.hint + (j.detail ? '\n' + j.detail : ''); return; }
+    if (!j.files.length) { b.textContent = offset ? '더 가져올 사진이 없어요.' : '폰에서 사진을 찾지 못했어요. (카메라·스크린샷 폴더)'; return; }
+    b.textContent = `📥 폰의 최근 사진·영상 ${j.files.length}개를 맥으로 가져왔어요 (전체 ${j.total}개 중 ${offset + 1}~${j.nextOffset}번째).\n사진을 끌어서 바탕화면이나 다른 앱에 바로 놓을 수 있어요.`;
+    const thumbs = document.createElement('div'); thumbs.className = 'thumbs';
+    for (const f of j.files) {
+      if (f.video) {
+        const a = document.createElement('a'); a.className = 'video'; a.href = f.url; a.target = '_blank'; a.textContent = '🎬 ' + f.name;
+        thumbs.appendChild(a);
+      } else {
+        const img = document.createElement('img'); img.src = f.url; img.alt = f.name; img.title = f.name;
+        img.onclick = () => { $('#lightbox img').src = f.url; $('#lightbox').classList.add('show'); };
+        thumbs.appendChild(img);
+      }
+    }
+    b.appendChild(thumbs);
+    const actions = document.createElement('div'); actions.className = 'actions';
+    const open = document.createElement('button'); open.type = 'button'; open.textContent = '📂 Finder에서 열기';
+    open.onclick = () => fetch('/api/open-folder', { method: 'POST' });
+    actions.appendChild(open);
+    if (j.nextOffset < j.total) {
+      const more = document.createElement('button'); more.type = 'button'; more.textContent = '⬇️ 6개 더 가져오기';
+      more.onclick = () => { more.remove(); importFromPhone(j.nextOffset); };
+      actions.appendChild(more);
+    }
+    b.appendChild(actions);
+    notify(`폰 사진 ${j.files.length}개를 가져왔어요`);
+  } catch (e) {
+    b.classList.remove('thinking'); b.textContent = '⚠️ ' + e.message;
+  } finally {
+    state.sending = false; checkStatus(); scrollDown();
+  }
+}
+$('#importBtn').addEventListener('click', () => { askNotifyPermission(); importFromPhone(0); });
+
+// ─────────────────────────── 폰으로 전송 ───────────────────────────
+// 클라우드: 대기열에서 사라지면(맥 도우미가 폰에 넣으면) '도착'으로 바꿔 표시 (최대 2시간 확인)
+function watchDelivery(names, line) {
+  const want = new Set(names || []);
+  if (!want.size) return;
+  const started = Date.now();
+  const timer = setInterval(async () => {
+    try {
+      const { items } = await fetchJson('/api/bridge/queue');
+      const left = items.filter((it) => want.has(it.name)).length;
+      if (left === 0) {
+        clearInterval(timer);
+        line.textContent = `✅ ${want.size}개가 폰에 도착했어요 → 갤러리의 'PhoneDrop' 앨범`;
+        notify(line.textContent);
+        checkStatus();
+      }
+    } catch { /* 다음에 다시 */ }
+    if (Date.now() - started > 2 * 60 * 60 * 1000) clearInterval(timer);
+  }, 5000);
+}
+
+async function sendToPhone(items, bubble, { asFiles = false } = {}) {
+  let line = $('.sendline', bubble);
+  if (!line) { line = document.createElement('div'); bubble.appendChild(line); }
+  line.className = 'sendline wait';
+  line.textContent = asFiles
+    ? `📱 ${items.length}개 보내는 중… (${mbOf(items)}MB · 큰 영상은 시간이 걸려요, 폰 화면을 켜 두세요)`
+    : `📱 ${items.length}장 보내는 중… (폰 화면을 켜 두세요)`;
+  state.sending = true;
+  $('#status').className = 'status busy'; $('#status').textContent = STATUS_TEXT.busy;
+  try {
+    let opts;
+    if (asFiles) {
+      const fd = new FormData();
+      items.forEach((f) => fd.append('files', f, f.name));
+      opts = { method: 'POST', body: fd };
+    } else {
+      opts = {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ images: items.map(({ name, dataUrl }) => ({ name, dataUrl })) }),
+      };
+    }
+    const j = await fetchJson(asFiles ? '/api/send-files' : '/api/send', opts);
+    if (j.ok && j.cloud) {
+      line.className = 'sendline ok';
+      line.textContent = j.bridgeOnline && j.phone === 'connected'
+        ? `📤 ${j.queued}개를 보냈어요 — 곧 폰에 들어가요…`
+        : `📤 ${j.queued}개를 대기열에 넣었어요 — 맥에 폰을 연결하면 자동으로 들어가요.`;
+      watchDelivery(j.names, line);
+    } else if (j.ok) {
+      line.className = 'sendline ok';
+      line.textContent = `✅ ${j.sent}${asFiles ? '개' : '장'} 보냈어요 → 갤러리의 '${j.phoneDir.split('/').pop()}' 앨범`;
+      notify(line.textContent);
+    } else {
+      line.className = 'sendline bad';
+      line.textContent = `⚠️ ${j.hint}` + (j.sent ? ` (${j.sent}장까지는 보냈어요)` : '');
+      const small = document.createElement('small');
+      small.textContent = `맥에는 저장해 뒀어요: ${j.outbox}` + (j.detail ? `\n${j.detail}` : '');
+      line.appendChild(small);
+      notify('⚠️ ' + j.hint);
+    }
+  } catch (e) {
+    line.className = 'sendline bad';
+    line.textContent = '⚠️ ' + e.message;
+  } finally {
+    state.sending = false;
+    checkStatus();
+    scrollDown();
+  }
+}
+
+// ─────────────────────────── 카드 이미지 그리기 ───────────────────────────
+function parseInline(text) { // **강조** 구간 나누기
+  const runs = []; const re = /\*\*(.+?)\*\*/g; let last = 0, m;
+  while ((m = re.exec(text))) {
+    if (m.index > last) runs.push({ t: text.slice(last, m.index), b: false });
+    runs.push({ t: m[1], b: true }); last = re.lastIndex;
+  }
+  if (last < text.length) runs.push({ t: text.slice(last), b: false });
+  return runs;
+}
+
+function wrapRuns(ctx, runs, maxW, fNorm, fBold) { // 폭에 맞춰 줄바꿈 (긴 단어는 글자 단위로)
+  const lines = []; let line = []; let w = 0;
+  const push = () => {
+    while (line.length && /^\s+$/.test(line[line.length - 1].t)) { w -= line[line.length - 1].w; line.pop(); }
+    lines.push(line); line = []; w = 0;
+  };
+  for (const run of runs) {
+    ctx.font = run.b ? fBold : fNorm;
+    for (let tok of run.t.split(/(\s+)/).filter(Boolean)) {
+      const space = /^\s+$/.test(tok);
+      if (space) { if (!line.length) continue; tok = ' '; }
+      const tw = ctx.measureText(tok).width;
+      if (w + tw <= maxW) { line.push({ t: tok, b: run.b, w: tw }); w += tw; continue; }
+      if (space) { push(); continue; }
+      if (tw <= maxW) { push(); line.push({ t: tok, b: run.b, w: tw }); w = tw; continue; }
+      for (const ch of Array.from(tok)) {
+        const cw = ctx.measureText(ch).width;
+        if (w + cw > maxW && line.length) push();
+        line.push({ t: ch, b: run.b, w: cw }); w += cw;
+      }
+    }
+  }
+  if (line.length || !lines.length) push();
+  return lines;
+}
+
+// 카드 배치 계산 (글씨 배율 s 기준)
+function layoutCard(card, s) {
+  const size = { title: r(78 * s), h: r(62 * s), body: r(56 * s), cont: r(38 * s) };
+  const F = {
+    title: `800 ${size.title}px ${FF}`, h: `700 ${size.h}px ${FF}`,
+    body: `400 ${size.body}px ${FF}`, bold: `700 ${size.body}px ${FF}`,
+    cont: `600 ${size.cont}px ${FF}`, foot: `400 32px ${FF}`,
+  };
+  const LH = { title: r(size.title * 1.3), h: r(size.h * 1.45), body: r(size.body * 1.55), cont: r(size.cont * 1.5) };
+  const contentW = W - PAD * 2;
+  const indent = r(size.body * 1.15);
+  const ctx = document.createElement('canvas').getContext('2d');
+
+  // 1) 본문을 줄 단위 항목으로
+  const items = [];
+  for (const raw of String(card.body || '').replace(/\r/g, '').split('\n')) {
+    const line = raw.trimEnd();
+    let m;
+    if (!line.trim()) { items.push({ kind: 'gap', h: r(LH.body * 0.45) }); continue; }
+    if ((m = /^#{1,6}\s+(.*)$/.exec(line))) {
+      items.push({ kind: 'gap', h: r(LH.body * 0.3) });
+      wrapRuns(ctx, parseInline(m[1]), contentW, F.h, F.h).forEach((l) => items.push({ kind: 'h', line: l, h: LH.h }));
+      continue;
+    }
+    if ((m = /^\s*(?:[-*•]\s+)?\[( |x|X|v|V)\]\s+(.*)$/.exec(line))) { // - [ ] 체크 항목
+      const marker = m[1] === ' ' ? 'box' : 'boxDone';
+      wrapRuns(ctx, parseInline(m[2]), contentW - indent, F.body, F.bold)
+        .forEach((l, i) => items.push({ kind: 'li', line: l, h: LH.body, marker: i === 0 ? marker : null }));
+      continue;
+    }
+    if ((m = /^\s*([-*•]|\d+[.)])\s+(.*)$/.exec(line))) {
+      const marker = /\d/.test(m[1]) ? m[1] : '•';
+      wrapRuns(ctx, parseInline(m[2]), contentW - indent, F.body, F.bold)
+        .forEach((l, i) => items.push({ kind: 'li', line: l, h: LH.body, marker: i === 0 ? marker : null }));
+      continue;
+    }
+    wrapRuns(ctx, parseInline(line), contentW, F.body, F.bold).forEach((l) => items.push({ kind: 'p', line: l, h: LH.body }));
+  }
+
+  // 2) 페이지 나누기
+  const title = String(card.title || '').trim();
+  const titleLines = title ? wrapRuns(ctx, [{ t: title, b: false }], contentW, F.title, F.title) : [];
+  const bottom = H - PAD - 70;
+  const pages = []; let ops, y;
+  const newPage = () => {
+    ops = []; pages.push(ops); y = PAD;
+    if (pages.length === 1 && titleLines.length) {
+      for (const l of titleLines) { ops.push({ kind: 'title', line: l, y, h: LH.title }); y += LH.title; }
+      y += 22; ops.push({ kind: 'rule', y }); y += 50;
+    } else if (title) {
+      ops.push({ kind: 'cont', text: title + ' (이어서)', y, h: LH.cont }); y += LH.cont + 30;
+    }
+  };
+  newPage();
+  let hasContent = false;
+  for (const it of items) {
+    if (it.kind === 'gap' && !hasContent) continue; // 페이지 맨 위 빈 줄은 생략
+    if (y + it.h > bottom) {
+      if (it.kind === 'gap') continue;
+      newPage(); hasContent = false;
+    }
+    ops.push({ ...it, y }); y += it.h;
+    if (it.kind !== 'gap') hasContent = true;
+  }
+  if (!hasContent && pages.length > 1) pages.pop();
+  const fill = (y - PAD) / (bottom - PAD); // 마지막 페이지가 얼마나 찼는지 (0~1)
+  return { pages, F, LH, size, indent, contentW, title, fill, bottom };
+}
+
+function renderCard(card, stampText) {
+  // 짧은 글은 한 장을 넘지 않는 선에서 글씨를 키워 화면을 채움 (최대 3배)
+  let L = layoutCard(card, state.scale);
+  if (L.pages.length === 1 && L.fill < 0.55) {
+    for (let k = state.scale * 1.1; k <= 3.0; k *= 1.1) {
+      const t = layoutCard(card, k);
+      if (t.pages.length > 1 || t.fill > 0.8) break;
+      L = t;
+    }
+  }
+  const { pages, F, size, indent, contentW, title } = L;
+  const T = THEMES[state.theme];
+  // 한 장짜리인데 아래가 많이 비면 내용을 살짝 가운데 쪽으로 내림
+  const dy = pages.length === 1 && L.fill < 0.6 ? r((L.bottom - PAD) * (1 - L.fill) * 0.35) : 0;
+
+  const drawRuns = (c, x, yMid, line, fNorm, fBold, color, boldColor) => {
+    for (const run of line) {
+      c.font = run.b ? fBold : fNorm; c.fillStyle = run.b ? boldColor : color;
+      c.fillText(run.t, x, yMid); x += run.w;
+    }
+  };
+  const drawBox = (c, x, yMid, done) => { // 체크박스
+    const b = r(size.body * 0.72), top = yMid - b / 2, rad = r(b * 0.18);
+    c.lineWidth = Math.max(3, r(size.body * 0.07)); c.strokeStyle = T.accent;
+    c.beginPath(); c.roundRect(x, top, b, b, rad); c.stroke();
+    if (done) {
+      c.fillStyle = T.accent; c.fill();
+      c.strokeStyle = T.bg; c.beginPath();
+      c.moveTo(x + b * 0.22, top + b * 0.52); c.lineTo(x + b * 0.42, top + b * 0.72); c.lineTo(x + b * 0.78, top + b * 0.3);
+      c.stroke();
+    }
+  };
+  return pages.map((page, idx) => {
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const c = cv.getContext('2d');
+    c.fillStyle = T.bg; c.fillRect(0, 0, W, H);
+    c.fillStyle = T.accent; c.fillRect(0, 0, W, 16);
+    c.textBaseline = 'middle'; c.textAlign = 'left'; c.lineCap = 'round'; c.lineJoin = 'round';
+    for (const op of page) {
+      const mid = op.y + dy + (op.h || 0) / 2;
+      if (op.kind === 'title') drawRuns(c, PAD, mid, op.line, F.title, F.title, T.text, T.text);
+      else if (op.kind === 'rule') { c.fillStyle = T.soft; c.fillRect(PAD, op.y + dy, contentW, 6); }
+      else if (op.kind === 'cont') { c.font = F.cont; c.fillStyle = T.sub; c.fillText(op.text, PAD, mid); }
+      else if (op.kind === 'h') drawRuns(c, PAD, mid, op.line, F.h, F.h, T.accent, T.accent);
+      else if (op.kind === 'p') drawRuns(c, PAD, mid, op.line, F.body, F.bold, T.text, T.accent);
+      else if (op.kind === 'li') {
+        if (op.marker === 'box' || op.marker === 'boxDone') drawBox(c, PAD, mid, op.marker === 'boxDone');
+        else if (op.marker) { c.font = op.marker === '•' ? F.bold : F.body; c.fillStyle = T.accent; c.fillText(op.marker, PAD + (op.marker === '•' ? 6 : 0), mid); }
+        drawRuns(c, PAD + indent, mid, op.line, F.body, F.bold, T.text, T.accent);
+      }
+    }
+    c.font = F.foot; c.fillStyle = T.sub;
+    c.fillText('PhoneDrop · ' + stampText, PAD, H - PAD + 6);
+    if (pages.length > 1) { c.textAlign = 'right'; c.fillText(`${idx + 1} / ${pages.length}`, W - PAD, H - PAD + 6); }
+    return { name: (title || '메모').slice(0, 20), dataUrl: cv.toDataURL('image/png') };
+  });
+}
+
+function nowStamp() {
+  const d = new Date(), p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}.${p(d.getMonth() + 1)}.${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+// ─────────────────────────── 변환 (AI / 그대로) ───────────────────────────
+const readAsDataURL = (f) => new Promise((ok, no) => { const fr = new FileReader(); fr.onload = () => ok(fr.result); fr.onerror = no; fr.readAsDataURL(f); });
+
+async function rawConvert(text, files) {
+  const notes = [], passthrough = [], pageCards = [];
+  // 링크가 있으면 웹페이지 본문을 그대로 카드로
+  const urls = [...new Set(text.match(/https?:\/\/[^\s<>"'）)\]]+/gi) || [])].slice(0, 2);
+  for (const u of urls) {
+    try {
+      const page = await fetchJson('/api/fetch-url?url=' + encodeURIComponent(u));
+      pageCards.push({ title: (page.title || '웹페이지').slice(0, 40), body: page.text });
+    } catch (e) { notes.push(`${u}: ${e.message}`); }
+  }
+  if (urls.length) text = text.replace(/https?:\/\/[^\s<>"'）)\]]+/gi, '').trim();
+  let body = text;
+  for (const f of files) {
+    if ((f.type || '').startsWith('image/')) passthrough.push({ name: f.name.replace(/\.[^.]+$/, ''), dataUrl: await readAsDataURL(f) });
+    else if (isTextFile(f)) body += (body ? '\n\n' : '') + `# ${f.name}\n` + (await f.text());
+    else notes.push(`${f.name}: "그대로" 모드에서는 텍스트·사진만 돼요. PDF는 "AI 정리" 모드를 쓰세요.`);
+  }
+  const firstLine = text.split('\n')[0].trim();
+  const title = firstLine && firstLine.length <= 20 && text.includes('\n') ? firstLine : '';
+  const cardBody = title ? text.split('\n').slice(1).join('\n') + body.slice(text.length) : body;
+  const cards = cardBody.trim() || title ? [{ title, body: cardBody }] : [];
+  return { reply: '', cards: [...pageCards, ...cards], passthrough, notes };
+}
+
+// AI에 보낼 사진은 긴 변 1600px JPEG로 줄임 (무료 API는 이미지 용량 제한이 있음, 폰으로 보낼 땐 원본 그대로)
+async function shrinkImage(file, max = 1600) {
+  try {
+    const bmp = await createImageBitmap(file);
+    const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+    if (k === 1 && file.size < 1.5 * 1024 * 1024 && /png|jpe?g|webp/.test(file.type)) return file;
+    const cv = document.createElement('canvas');
+    cv.width = Math.round(bmp.width * k); cv.height = Math.round(bmp.height * k);
+    const c = cv.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, cv.width, cv.height); c.drawImage(bmp, 0, 0, cv.width, cv.height);
+    const blob = await new Promise((ok) => cv.toBlob(ok, 'image/jpeg', 0.85));
+    return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
+  } catch { return file; }
+}
+
+async function aiConvert(text, files) {
+  const fd = new FormData();
+  fd.append('message', text);
+  fd.append('history', JSON.stringify(state.history));
+  for (const f of files) {
+    const up = (f.type || '').startsWith('image/') ? await shrinkImage(f) : f;
+    fd.append('files', up, up.name);
+  }
+  const j = await fetchJson('/api/chat', { method: 'POST', body: fd });
+  state.history.push({ role: 'user', content: text + (files.length ? `\n[첨부: ${files.map((f) => f.name).join(', ')}]` : '') });
+  state.history.push({ role: 'assistant', content: j.raw || JSON.stringify({ reply: j.reply, cards: j.cards }) });
+  state.history = state.history.slice(-12);
+  return j;
+}
+
+// ─────────────────────────── 보내기 ───────────────────────────
+async function submit() {
+  if (state.busy) return;
+  const text = $('#input').value.trim();
+  const files = state.files.slice();
+  if (!text && !files.length) return;
+  $('#input').value = ''; autoGrow(); state.files = []; renderAttachments();
+  addUserBubble(text, files);
+  askNotifyPermission();
+  state.busy = true; $('#sendBtn').disabled = true;
+
+  // 영상은 AI를 거치지 않고 원본 그대로 폰으로
+  const videos = files.filter(isVideo);
+  const others = files.filter((f) => !isVideo(f));
+  if (videos.length) {
+    const vb = addBotBubble(`🎬 영상 ${videos.length}개 (${mbOf(videos)}MB) — 원본 그대로 보내요.\n` + videos.map((v) => '· ' + v.name).join('\n'));
+    const actions = document.createElement('div'); actions.className = 'actions';
+    const again = document.createElement('button'); again.type = 'button'; again.textContent = '📱 폰으로 보내기';
+    again.onclick = () => sendToPhone(videos, vb, { asFiles: true });
+    actions.appendChild(again); vb.appendChild(actions);
+    if ($('#autoSend').checked) await sendToPhone(videos, vb, { asFiles: true });
+    // "이 영상 보내줘" 같은 짧은 말만 있으면 AI는 부르지 않음
+    if (!others.length && text.length < 40) { state.busy = false; $('#sendBtn').disabled = false; $('#input').focus(); return; }
+  }
+
+  const bubble = addBotBubble(state.mode === 'ai' ? 'AI가 정리하는 중…' : '카드 만드는 중…', true);
+  try {
+    const result = state.mode === 'ai' ? await aiConvert(text, others) : await rawConvert(text, others);
+    if (result.fontScale) setScale(result.fontScale);
+    if (result.theme) setTheme(result.theme);
+    if (document.fonts?.ready) await document.fonts.ready;
+    const stamp = nowStamp();
+    const images = [];
+    for (const card of result.cards || []) images.push(...renderCard(card, stamp));
+    images.push(...(result.passthrough || []));
+    fillBotBubble(bubble, result.reply, images, result.notes);
+    if (images.length && $('#autoSend').checked) await sendToPhone(images, bubble);
+  } catch (e) {
+    bubble.classList.remove('thinking');
+    bubble.textContent = '⚠️ ' + e.message;
+  } finally {
+    state.busy = false; $('#sendBtn').disabled = false; $('#input').focus();
+  }
+}
+$('#composer').addEventListener('submit', (e) => { e.preventDefault(); submit(); });
+const autoGrow = () => { const t = $('#input'); t.style.height = 'auto'; t.style.height = Math.min(200, t.scrollHeight) + 'px'; };
+$('#input').addEventListener('input', autoGrow);
+$('#input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); submit(); }
+});
+
+// ─────────────────────────── 시작 ───────────────────────────
+$('#loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  setPw($('#pwInput').value.trim());
+  const res = await fetch('/api/status');
+  if (res.status === 401) { $('#pwErr').textContent = '비밀번호가 틀렸어요.'; return; }
+  $('#login').classList.remove('show'); $('#pwInput').value = '';
+  checkStatus(); $('#input').focus();
+});
+
+(async () => {
+  try { state.config = await (await fetch('/api/config')).json(); } catch { /* 서버 꺼짐 */ }
+  if (state.config.cloud) $('#importBtn').style.display = 'none';
+  if (state.config.needsPassword && !getPw()) showLogin();
+  let hello = '안녕하세요! 글을 쓰거나 파일(텍스트·PDF·사진)을 끌어다 놓으면, 폰에서 읽기 좋은 카드 이미지로 만들어 갤러리로 보내 드려요.\n\n'
+    + '• AI 정리: AI가 요약·정리해서 카드로 ("단어장으로 만들어 줘", "글씨 더 크게"처럼 말해도 돼요)\n'
+    + '• 그대로: 쓴 글은 그대로 카드로, 사진은 그대로 전송\n'
+    + '• 영상은 어느 모드든 원본 그대로 폰에 보내요\n'
+    + '• 웹 주소를 붙여넣으면 기사·블로그 본문을 카드로 만들어요\n'
+    + (state.config.cloud
+      ? '\n☁️ 클라우드 버전이에요. 보낸 카드는 대기열에 쌓였다가, 집 맥에 폰을 연결하면 맥 도우미가 자동으로 폰에 넣어요.'
+      : '• 📥 버튼으로 폰의 최근 사진·스크린샷을 맥으로 가져와요\n\n'
+        + '보내기 전에 OpenMTP는 꺼 두고, 폰은 잠금 해제 + "파일 전송" 모드로 해 주세요.');
+  if (state.config.hasKey === false) { setMode('raw'); hello += '\n\n⚠️ AI 키가 없어서 "그대로" 모드로 시작해요. (.env에 GROQ_API_KEY 추가)'; }
+  else if (state.config.model) hello += `\n\n🤖 ${state.config.provider} · 글: ${state.config.model} · 사진: ${state.config.visionModel || '읽기 불가'}`;
+  addBotBubble(hello);
+  checkStatus();
+  $('#input').focus();
+})();
+</script>
+</body>
+</html>

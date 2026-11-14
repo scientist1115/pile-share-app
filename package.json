@@ -1,0 +1,24 @@
+{
+  "name": "phonedrop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "맥·클라우드에서 글·파일을 AI가 카드 이미지로 바꿔 USB(MTP)로 갤럭시 갤러리에 보내는 앱",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "bridge": "node bridge.mjs",
+    "bridge:install": "node scripts/bridge-service.mjs install",
+    "bridge:uninstall": "node scripts/bridge-service.mjs uninstall",
+    "bridge:log": "tail -n 50 -f ~/PhoneDrop/bridge.log"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.10",
+    "express": "^5.3.0",
+    "multer": "^2.5.0",
+    "openai": "^7.56.0",
+    "unpdf": "^1.9.1"
+  }
+}
